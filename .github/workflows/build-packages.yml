@@ -1,0 +1,100 @@
+name: Build RPM and DEB Packages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y rpm dpkg-dev
+
+    - name: Set up RPM build environment
+      run: |
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        
+    - name: Prepare source tarball
+      run: |
+        mkdir sysprog-1.0
+        cp -r countscript sysprog-1.0/
+        tar -czvf ~/rpmbuild/SOURCES/sysprog-1.0.tar.gz sysprog-1.0
+
+    - name: Create SPEC file
+      run: |
+        cat << EOF > ~/rpmbuild/SPECS/sysprog.spec
+        Name: sysprog
+        Version: 1.0
+        Release: 1%{?dist}
+        Summary: Script to count files in /etc
+        License: MIT
+        Source0: %{name}-%{version}.tar.gz
+        
+        %description
+        This package includes a script that counts files in the /etc directory.
+        
+        %prep
+        %setup -q
+        
+        %build
+        
+        %install
+        mkdir -p %{buildroot}/usr/local/bin
+        install -m 755 countscript/count_files.sh %{buildroot}/usr/local/bin/count_files.sh
+        
+        %files
+        /usr/local/bin/count_files.sh
+        
+        %changelog
+        EOF
+
+    - name: Build RPM
+      run: |
+        rpmbuild -ba ~/rpmbuild/SPECS/sysprog.spec
+
+    - name: Prepare DEB package structure
+      run: |
+        mkdir -p ~/sysprog_1.0-1/usr/local/bin
+        cp countscript/count_files.sh ~/sysprog_1.0-1/usr/local/bin/
+        mkdir ~/sysprog_1.0-1/DEBIAN
+
+    - name: Create DEB control file
+      run: |
+        cat << EOF > ~/sysprog_1.0-1/DEBIAN/control
+        Package: sysprog
+        Version: 1.0-1
+        Section: base
+        Priority: optional
+        Architecture: all
+        Maintainer: Yuri <yuriiemail@example.com>
+        Description: Script to count files in /etc
+         This package includes a script that counts files in the /etc directory.
+        EOF
+
+    - name: Set permissions for DEB package
+      run: |
+        chmod 755 ~/sysprog_1.0-1/usr/local/bin/count_files.sh
+
+    - name: Build DEB package
+      run: |
+        dpkg-deb --build ~/sysprog_1.0-1
+
+    - name: Upload RPM as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: sysprog-rpm
+        path: ~/rpmbuild/RPMS/x86_64/*.rpm
+
+    - name: Upload DEB as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: sysprog-deb
+        path: ~/sysprog_1.0-1.deb
