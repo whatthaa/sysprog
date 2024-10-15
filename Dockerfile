@@ -31,4 +31,4 @@ RUN jenkins-plugin-cli --plugins \
     git \
     docker-workflow
 
-ENTRYPOINT []
+CMD ["jenkins-slave"]
